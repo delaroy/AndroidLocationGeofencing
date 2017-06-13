@@ -16,8 +16,10 @@ package com.delaroystudios.locationgeo;
 * limitations under the License.
 */
 
+import android.app.NotificationManager;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -30,6 +32,9 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import com.delaroystudios.locationgeo.R;
@@ -65,6 +70,7 @@ public class MainActivity extends AppCompatActivity implements
     private RecyclerView mRecyclerView;
     private boolean mIsEnabled;
     private GoogleApiClient mClient;
+    private Geofencing mGeofencing;
 
     /**
      * Called when the activity is starting
@@ -83,6 +89,23 @@ public class MainActivity extends AppCompatActivity implements
         mRecyclerView.setAdapter(mAdapter);
 
 
+        Switch onOffSwitch = (Switch) findViewById(R.id.enable_switch);
+        mIsEnabled = getPreferences(MODE_PRIVATE).getBoolean(getString(R.string.setting_enabled), false);
+        onOffSwitch.setChecked(mIsEnabled);
+        onOffSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE).edit();
+                editor.putBoolean(getString(R.string.setting_enabled), isChecked);
+                mIsEnabled = isChecked;
+                editor.commit();
+                if (isChecked) mGeofencing.registerAllGeofences();
+                else mGeofencing.unRegisterAllGeofences();
+            }
+
+        });
+
+
                mClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
@@ -90,6 +113,8 @@ public class MainActivity extends AppCompatActivity implements
                 .addApi(Places.GEO_DATA_API)
                 .enableAutoManage(this, this)
                 .build();
+
+        mGeofencing = new Geofencing(this, mClient);
 
     }
 
@@ -144,7 +169,8 @@ public class MainActivity extends AppCompatActivity implements
             @Override
             public void onResult(@NonNull PlaceBuffer places) {
                 mAdapter.swapPlaces(places);
-
+                mGeofencing.updateGeofencesList(places);
+                if (mIsEnabled) mGeofencing.registerAllGeofences();
             }
         });
     }
@@ -196,6 +222,43 @@ public class MainActivity extends AppCompatActivity implements
             // Get live data information
             refreshPlacesData();
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+        // Initialize location permissions checkbox
+        CheckBox locationPermissions = (CheckBox) findViewById(R.id.location_permission_checkbox);
+        if (ActivityCompat.checkSelfPermission(MainActivity.this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            locationPermissions.setChecked(false);
+        } else {
+            locationPermissions.setChecked(true);
+            locationPermissions.setEnabled(false);
+        }
+
+        // Initialize ringer permissions checkbox
+        CheckBox ringerPermissions = (CheckBox) findViewById(R.id.ringer_permissions_checkbox);
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        // Check if the API supports such permission change and check if permission is granted
+        if (android.os.Build.VERSION.SDK_INT >= 24 && !nm.isNotificationPolicyAccessGranted()) {
+            ringerPermissions.setChecked(false);
+        } else {
+            ringerPermissions.setChecked(true);
+            ringerPermissions.setEnabled(false);
+        }
+    }
+
+    public void onRingerPermissionsClicked(View view) {
+        Intent intent = new Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+        startActivity(intent);
+    }
+
+    public void onLocationPermissionClicked(View view) {
+        ActivityCompat.requestPermissions(MainActivity.this,
+                new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                PERMISSIONS_REQUEST_FINE_LOCATION);
     }
 
 

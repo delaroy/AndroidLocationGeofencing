@@ -11,7 +11,7 @@
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_API_KEY" />
+            android:value="AIzaSyDNzfaOxZ0AyMXMzDBZuNwCDqKe1MoMEj0" />
 
         <activity android:name="com.delaroystudios.locationgeo.MainActivity">
             <intent-filter>
